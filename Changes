@@ -1,0 +1,27 @@
+# -*-n3-*-
+
+@prefix dc:      <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix doap:    <http://usefulinc.com/ns/doap#> .
+@prefix asc:     <http://aaronland.info/ns/changefile/> .
+                                     
+<>
+        dc:identifier           "$Id: Changes,v 1.1 2007/06/28 04:57:30 asc Exp $" ;
+        dc:description          "Changes for Net::FireEagle.pm" ;
+        dcterms:references      <http://aaronland.info/perl/net/fireeagle/> .
+
+<http://aaronland.info/perl/net/fireeagle/Net-FireEagle-1.0.tar.gz>
+        dcterms:isVersionOf <http://aaronland.info/perl/net/fireeagle/> ;
+
+        doap:Version    [
+                        doap:revision     "1.0" ;
+                        doap:created      "2007-06-17" ;
+                        ];
+        asc:changes     [
+                        asc:comment       "Initial release" ;
+                        ] .
+
+<http://aaronland.info/perl/net/fireeagle/>
+        a doap:Project ;
+        doap:download-page      "http://search.cpan.org/dist/Net-FireEagle/" ;
+        doap:download-mirror    "http://aaronland.info/perl/net/fireeagle/" .

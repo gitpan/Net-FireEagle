@@ -1,0 +1,156 @@
+NAME
+    Net::FireEagle - Object methods for working with the FireEagle location
+    service.
+
+SYNOPSIS
+     use Getopt::Std;
+     use Net::FireEagle;
+
+     my %opts = ();
+     getopts('c:', \%opts);
+
+     my $fe = Net::FireEagle->new($opts{'c'});
+     $fe->update_location("loc" => "Montreal QC");
+
+     my $res  = $fe->query_location();
+     my $city = $res->findvalue("/ResultSet/Result/city");
+
+     print "OH HAI! IM IN UR $city\n";
+
+DESCRIPTION
+    Object methods for working with the FireEagle location service.
+
+OPTIONS
+    Options are passed to Net::Flickr::Backup using a Config::Simple object
+    or a valid Config::Simple config file. Options are grouped by "block".
+
+  fireeagle
+
+    * app_key
+        String. *required*
+
+        A valid FireEagle application key.
+
+    * app_secret
+        String. *required*
+
+        A valid FireEagle application secret.
+
+    * auth_token
+        A valid FireEagle authentication token for a user.
+
+    * api_handler
+        String. *required*
+
+        The api_handler defines which XML/XPath handler to use to process
+        API responses.
+
+        * LibXML
+            Use XML::LibXML.
+
+        * XPath
+            Use XML::XPath.
+
+PACKAGE METHODS
+  __PACKAGE__->new($cfg)
+
+    Where $cfg is either a valid *Config::Simple* object or the path to a
+    file that can be parsed by *Config::Simple*.
+
+    Returns a *Net::FireEagle* object.
+
+OBJECT METHODS YOU SHOULD CARE ABOUT
+  $obj->query_location()
+
+    Query FireEagle for a user's (as defined by the *fireeagle.auth_token*
+    config) current location.
+
+    If the method encounters any errors calling the API, receives an API
+    error or can not parse the response it will log an error event, via the
+    log method, and return undef.
+
+    Otherwise it will return a *XML::LibXML::Document* object (if
+    XML::LibXML is installed) or a *XML::XPath* object.
+
+  $obj->update_location(%args)
+
+    Notify FireEagle of a user's (as defined by the *fireeagle.auth_token*
+    config) current location.
+
+    Valid arguments are a hash of key/value pairs a defined by the FireEagle
+    update API documentation.
+
+    If the method encounters any errors calling the API, receives an API
+    error or can not parse the response it will log an error event, via the
+    log method, and return undef.
+
+    Otherwise it will return a *XML::LibXML::Document* object (if
+    XML::LibXML is installed) or a *XML::XPath* object.
+
+  $obj->authorize_url()
+
+    Generate a URL for requesting a user's authorization for your
+    application.
+
+    Returns a string.
+
+  $obj->mobile_token_url()
+
+    Generate a URL for creating a mobile shortcode for your application.
+
+    Returns a string.
+
+  $obj->exchange_mobile_token($shortcode)
+
+    Exchange a mobile shortcode for a permanent user authentication token.
+
+    Returns a string on success, or undef.
+
+OBJECT METHODS YOU MAY CARE ABOUT
+  $obj->sign_args(\%args)
+
+    Generate an API signature and adds it to the %args hash.
+
+  $obj->generate_sig(\%args)
+
+    Returns a string.
+
+  $obj->execute_request($url)
+
+    If the method encounters any errors it will log an error event, via the
+    log method, and return undef.
+
+    Otherwise it will return a *XML::LibXML::Document* object (if
+    XML::LibXML is installed) or a *XML::XPath* object.
+
+  $obj->parse_response(HTTP::Response)
+
+  $obj->log()
+
+    Returns a *Log::Dispatch* object.
+
+VERSION
+    1.0
+
+DATE
+    $Date: 2007/06/28 04:49:28 $
+
+AUTHOR
+    Aaron Straup Cope <ascope@cpan.org>
+
+SEE ALSO
+    http://fireeagle.research.yahoo.com/
+
+    Config::Simple
+
+BUGS
+    Please report all bugs via http://rt.cpan.org/
+
+LICENSE
+    Copyright (c) 2007 Aaron Straup Cope. All Rights Reserved.
+
+    This is free software. You may redistribute it and/or modify it under
+    the same terms as Perl itself.
+
+    return 1;
+
