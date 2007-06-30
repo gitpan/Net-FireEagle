@@ -1,11 +1,11 @@
 use strict;
 
-# $Id: FireEagle.pm,v 1.4 2007/06/28 04:49:28 asc Exp $
+# $Id: FireEagle.pm,v 1.6 2007/06/30 04:25:27 asc Exp $
 
 package Net::FireEagle;
 use base qw (LWP::UserAgent);
 
-$Net::FireEagle::VERSION = '1.0';
+$Net::FireEagle::VERSION = '1.01';
 
 =head1 NAME
 
@@ -79,7 +79,7 @@ Use XML::XPath.
 =cut
 
 use Config::Simple;
-use ReadOnly;
+use Readonly;
 use URI;
 use Digest::SHA1 qw(sha1_hex);
 use HTTP::Request;
@@ -489,11 +489,11 @@ sub log {
 
 =head1 VERSION
 
-1.0
+1.01
 
 =head1 DATE
 
-$Date: 2007/06/28 04:49:28 $
+$Date: 2007/06/30 04:25:27 $
 
 =head1 AUTHOR
 
@@ -502,6 +502,8 @@ Aaron Straup Cope  E<lt>ascope@cpan.orgE<gt>
 =head1 SEE ALSO
 
 L<http://fireeagle.research.yahoo.com/>
+
+L<http://www.aaronland.info/weblog/2007/06/08/pynchonite/#firebagel>
 
 L<Config::Simple>
 

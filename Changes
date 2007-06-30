@@ -6,16 +6,28 @@
 @prefix asc:     <http://aaronland.info/ns/changefile/> .
                                      
 <>
-        dc:identifier           "$Id: Changes,v 1.1 2007/06/28 04:57:30 asc Exp $" ;
+        dc:identifier           "$Id: Changes,v 1.2 2007/06/30 04:25:27 asc Exp $" ;
         dc:description          "Changes for Net::FireEagle.pm" ;
         dcterms:references      <http://aaronland.info/perl/net/fireeagle/> .
+
+<http://aaronland.info/perl/net/fireeagle/Net-FireEagle-1.01.tar.gz>
+        dcterms:isVersionOf <http://aaronland.info/perl/net/fireeagle/> ;
+        dc:replaces <http://aaronland.info/perl/net/fireeagle/Net-FireEagle-1.0.tar.gz>;
+
+        doap:Version    [
+                        doap:revision     "1.01" ;
+                        doap:created      "2007-06-29" ;
+                        ];
+        asc:changes     [
+                        asc:bugfixt       "Fixed typo loading Readonly" ;
+                        ] .
 
 <http://aaronland.info/perl/net/fireeagle/Net-FireEagle-1.0.tar.gz>
         dcterms:isVersionOf <http://aaronland.info/perl/net/fireeagle/> ;
 
         doap:Version    [
                         doap:revision     "1.0" ;
-                        doap:created      "2007-06-17" ;
+                        doap:created      "2007-06-27" ;
                         ];
         asc:changes     [
                         asc:comment       "Initial release" ;

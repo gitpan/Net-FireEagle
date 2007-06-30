@@ -1,6 +1,6 @@
 ---
 name: Net-FireEagle
-version: 1.0
+version: 1.01
 author:
   - 'Aaron Straup Cope  E<lt>ascope@cpan.orgE<gt>'
 abstract: Object methods for working with the FireEagle location service.
@@ -22,7 +22,7 @@ provides:
     file: lib/Net/FireBagel.pm
   Net::FireEagle:
     file: lib/Net/FireEagle.pm
-    version: 1.0
+    version: 1.01
 generated_by: Module::Build version 0.2806
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html

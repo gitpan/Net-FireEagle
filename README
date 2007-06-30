@@ -130,16 +130,18 @@ OBJECT METHODS YOU MAY CARE ABOUT
     Returns a *Log::Dispatch* object.
 
 VERSION
-    1.0
+    1.01
 
 DATE
-    $Date: 2007/06/28 04:49:28 $
+    $Date: 2007/06/30 04:25:27 $
 
 AUTHOR
     Aaron Straup Cope <ascope@cpan.org>
 
 SEE ALSO
     http://fireeagle.research.yahoo.com/
+
+    http://www.aaronland.info/weblog/2007/06/08/pynchonite/#firebagel
 
     Config::Simple
 
