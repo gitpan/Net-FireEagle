@@ -1,11 +1,10 @@
-# $Id: MANIFEST,v 1.1 2007/06/28 04:57:30 asc Exp $
 Build.PL
+bin/fireeagle
 Changes
 lib/Net/FireEagle.pm
-lib/Net/FireBagel.pm
+MANIFEST			This list of files
+t/00use.t
+t/pod-coverage.t
+t/pod.t
 Makefile.PL
-MANIFEST
-MANIFEST.SKIP
 META.yml
-README
-t/00-load.t

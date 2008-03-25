@@ -1,523 +1,502 @@
-use strict;
-
-# $Id: FireEagle.pm,v 1.6 2007/06/30 04:25:27 asc Exp $
-
 package Net::FireEagle;
-use base qw (LWP::UserAgent);
 
-$Net::FireEagle::VERSION = '1.01';
+# Client library for FireEagle
+use strict;
+use LWP;
+use CGI;
+require Net::OAuth::Request;
+require Net::OAuth::RequestTokenRequest;
+require Net::OAuth::AccessTokenRequest;
+require Net::OAuth::ProtectedResourceRequest;
+
+BEGIN {
+    eval {  require Math::Random::MT };
+    unless ($@) {
+        Math::Random::MT->import(qw(srand rand));
+    }
+}
+
+our $VERSION = '0.8';
+our $DEBUG   = 0;
+
+# FireEagle Endpoint URLs
+our $REQUEST_TOKEN_URL = 'https://fireeagle.yahooapis.com/oauth/request_token';
+our $AUTHORIZATION_URL = 'https://fireeagle.yahoo.net/oauth/authorize';
+our $ACCESS_TOKEN_URL  = 'https://fireeagle.yahooapis.com/oauth/access_token';
+our $QUERY_API_URL     = 'https://fireeagle.yahooapis.com/api/0.1/user';
+our $UPDATE_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/update';
+our $LOOKUP_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/lookup';
+our $SIGNATURE_METHOD  = 'HMAC-SHA1';
+our $UNAUTHORIZED      = "Unauthorized.";
+
+our @required_constructor_params = qw(consumer_key consumer_secret);
+our @access_token_params         = qw(access_token access_token_secret);
+
 
 =head1 NAME
 
-Net::FireEagle - Object methods for working with the FireEagle location service.
+Net::FireEagle - access Yahoo's new FireEagle developer service
 
-=head1 SYNOPSIS
+=head2 SYNOPSIS
 
- use Getopt::Std;
- use Net::FireEagle;
+    # Set up Fire Eagle oauth
+    my $fe  = Net::FireEagle->new( consumer_key    => $consumer_key, 
+                                   consumer_secret => $consumer_secret );
 
- my %opts = ();
- getopts('c:', \%opts);
+    # Resume previous Fire Eagle oauth, feed access token and secret
+    my $fe2 = Net::FireEagle->new( consumer_key        => $consumer_key, 
+                                   consumer_secret     => $consumer_secret, 
+                                   access_token        => $access_token, 
+                                   access_token_secret => $access_token_secret );
 
- my $fe = Net::FireEagle->new($opts{'c'});
- $fe->update_location("loc" => "Montreal QC");
+    # Send this to user to grant authorization for this app
+    my $auth_url = $fe->authorization_url;
+    # ... and request an access token
+    # Note: you can save these in DB to restore previous Fire Eagle oauth session
+    my ($access_token, $access_token_secret) = $fe->request_access_token;
 
- my $res  = $fe->query_location();
- my $city = $res->findvalue("/ResultSet/Result/city");
+    # Get them back
+    my $access_token = $fe->access_token;
+    my $access_token_secret = $fe->access_token_secret;
 
- print "OH HAI! IM IN UR $city\n";
+    # Can't query or update location without authorization
+    my $loc = $fe->location;                     # returns xml
+    my $loc = $fe->location( format => 'xml'  ); # returns xml
+    my $loc = $fe->location( format => 'json' ); # returns json
 
-=head1 DESCRIPTION
+    # returns result on success. dies or returns undef on failure    
+    my $return = $fe->update_location( "500 Third St., San Francisco, CA" );
 
-Object methods for working with the FireEagle location service.
+    # Find a location. Returns either xml or json
+    my $return = $fe->lookup_location( "Pensacola" );
 
-=head1 OPTIONS
+=head1 ABOUT
 
-Options are passed to Net::Flickr::Backup using a Config::Simple object or
-a valid Config::Simple config file. Options are grouped by "block".
+Fire Eagle is a site that stores information about your location. With 
+your permission, other services and devices can either update that 
+information or access it. By helping applications respond to your 
+location, Fire Eagle is designed to make the world around you more 
+interesting! Use your location to power friend-finders, games, local 
+information services, blog badges and stuff like that...
 
-=head2 fireeagle
+For more information see http://fireeagle.yahoo.net/
+
+=head1 AUTHENTICATION
+
+For more information read this
+
+    http://fireeagle.yahoo.net/developer/documentation/getting_started
+
+but, in short you have to first get an API key from the FireEagle site. 
+Then using this consumer key and consumer secret you have to 
+authenticate the relationship between you and your user. See the script 
+C<fireagle> packaged with this module for an example of how to do this.
+
+=head1 SIMPLE DAILY USAGE AND EXAMPLE CODE
+
+The script C<fireeagle> shipped with this module gives you really
+quick access to your FireEagle account - you can use it to simply 
+query and update your location.
+
+It also serves as a pretty good example of how to do desktop app
+authentication and how to use the API. 
+
+=head1 METHODS
+
+=cut
+
+=head2 new <opts>
+
+Create a new FireEagle object. This must have the options
 
 =over 4
 
-=item * B<app_key>
+=item consumer_key 
 
-String. I<required>
-
-A valid FireEagle application key.
-
-=item * B<app_secret>
-
-String. I<required>
-
-A valid FireEagle application secret.
-
-=item * B<auth_token>
-
-A valid FireEagle authentication token for a user.
-
-=item * B<api_handler>
-
-String. I<required>
-
-The B<api_handler> defines which XML/XPath handler to use to process API responses.
-
-=over 4 
-
-=item * B<LibXML>
-
-Use XML::LibXML.
-
-=item * B<XPath>
-
-Use XML::XPath.
+=item consumer_secret
 
 =back
 
+which you can get at http://fireeagle.yahoo.net/developer/manage
+
+then, when you have your per-user authentication tokens (see above) you 
+can supply
+
+=over 4
+
+=item access_token
+
+=item access_token_secret
+
 =back
-
-=cut
-
-use Config::Simple;
-use Readonly;
-use URI;
-use Digest::SHA1 qw(sha1_hex);
-use HTTP::Request;
-use Log::Dispatch;
-use Log::Dispatch::Screen;
-
-Readonly::Scalar my $FE_SCHEME => "http";
-Readonly::Scalar my $FE_HOST   => "fireeagle.research.yahoo.com";
-
-Readonly::Scalar my $FE_AUTHORIZE     => "/authorize.php";
-Readonly::Scalar my $FE_DISPLAYTOKEN  => "/displayToken.php";
-
-Readonly::Scalar my $FE_EXCHANGETOKEN => "/api/exchangeToken.php";
-Readonly::Scalar my $FE_QUERYLOC      => "/api/queryLoc.php";
-Readonly::Scalar my $FE_UPDATELOC     => "/api/updateLoc.php";
-
-=head1 PACKAGE METHODS
-
-=cut
-
-=head2 __PACKAGE__->new($cfg)
-
-Where B<$cfg> is either a valid I<Config::Simple> object or the path
-to a file that can be parsed by I<Config::Simple>.
-
-Returns a I<Net::FireEagle> object.
 
 =cut
 
 sub new {
-        my $pkg = shift;
-        my $cfg = shift;
+    my $proto  = shift;
+    my $class  = ref $proto || $proto;
+    my %params = @_;
+    my $client = bless \%params, $class;
 
-        my $self = LWP::UserAgent->new();
+    # Verify arguments
+    $client->_check;
 
-        #
-        # Log-o-rama
-        #
+    # Set up LibWWWPerl for HTTP requests
+    $client->{browser} = LWP::UserAgent->new;
 
-        my $log_fmt = sub {
-                my %args = @_;
-                
-                my $msg = $args{'message'};
-                chomp $msg;
-                
-                if ($args{'level'} eq "error") {
-                        
-                        my ($ln, $sub) = (caller(4))[2,3];
-                        $sub =~ s/.*:://;
-                        
-                        return sprintf("[%s][%s, ln%d] %s\n",
-                                       $args{'level'}, $sub, $ln, $msg);
-                }
-                
-                return sprintf("[%s] %s\n", $args{'level'}, $msg);
-        };
-        
-        my $logger = Log::Dispatch->new(callbacks=>$log_fmt);
-        my $error  = Log::Dispatch::Screen->new(name      => '__error',
-                                                min_level => 'error',
-                                                stderr    => 1);
-        
-        $logger->add($error);
-
-        #
-        # Who am I?
-        #
-
-        $self->agent("FIREBAGEL $Net::FireEagle::VERSION");
-
-        if (ref($cfg) eq "Config::Simple") {
-                $self->{'__cfg'} = $cfg;
-        }
-        
-        elsif (-f $cfg){
-
-                eval {
-                        $self->{'__cfg'} = Config::Simple->new($cfg);                        
-                };
-
-                if ($@) {
-                        $logger->error($@);
-                        return undef;
-                }
-        }
-
-        else {
-                $logger->error("Not a valid Config::Simple object or path");
-                return undef;
-        }
-
-        # 
-        # Ensure we have everything we
-        # need to work with
-        #
-
-        my %required = (
-                        "fireeagle" => ["app_key", "app_secret", "api_handler"],
-                       );
-
-        foreach my $class (keys %required) {
-                foreach my $param (@{$required{$class}}){
-                        my $key = $class . "." .  $param;
-
-                        if (! $self->{'__cfg'}->param($key)){
-                                $logger->error("Missing $class $param config");
-                                return undef;
-                        }
-                }
-        }
-
-        if ($self->{'__cfg'}->param("fireeagle.api_handler") !~ /^(?:XPath|LibXML)$/) {
-                $logger->error("Invalid API handler");
-                return 0;
-        }
-        
-        #
-        # Make it so...
-        #
-                
-        $self->{'__log'} = $logger;
-
-        bless $self, $pkg;
-        return $self;
+    # Client Object
+    return $client;
 }
 
-=head1 OBJECT METHODS YOU SHOULD CARE ABOUT
+
+
+# Validate required constructor params
+sub _check {
+    my $self = shift;
+    foreach my $param ( @required_constructor_params ) {
+        if ( not defined $self->{$param} ) {
+            die "Missing required parameter '$param'";
+        }
+    }
+}
+
+=head2 authorized
+
+Whether the client has the necessary credentials to be authorized.
+
+Note that the credentials may be wrong and so the request may still fail.
 
 =cut
 
-=head2 $obj->query_location()
+sub authorized {
+    my $self = shift;
+    foreach my $param ( @access_token_params ) {
+        if ( not defined $self->{$param} ) { return 0; }
+    }
+    return 1;
+}
 
-Query FireEagle for a user's (as defined by the I<fireeagle.auth_token> config) 
-current location.
+=head2 consumer_key [consumer key]
 
-If the method encounters any errors calling the API, receives an API error
-or can not parse the response it will log an error event, via the B<log> method,
-and return undef.
+Returns the current consumer key. 
 
-Otherwise it will return a I<XML::LibXML::Document> object (if XML::LibXML is
-installed) or a I<XML::XPath> object.
+Can optionally set the consumer key.
 
 =cut
 
-sub query_location {
-        my $self = shift;
-        my $token = shift;
-        
-        $token ||= $self->{'__cfg'}->param("fireeagle.auth_token");
-
-        my %args = ("appid"     => $self->{'__cfg'}->param("fireeagle.app_key"),
-                    "userid"    => $token,
-                    "timestamp" => time());
-
-        $self->sign_args(\%args);
-
-        my $uri = URI->new();
-        $uri->scheme($FE_SCHEME);
-        $uri->host($FE_HOST);
-        $uri->path($FE_QUERYLOC);
-        $uri->query_form(%args);
-
-        my $url = $uri->as_string();
-        return $self->execute_request($url);
+sub consumer_key {
+    my $self = shift;
+    $self->_access('consumer_key', $@);
 }
 
-=head2 $obj->update_location(%args)
+=head2 consumer_secret [consumer secret]
 
-Notify FireEagle of a user's (as defined by the I<fireeagle.auth_token> config)
-current location.
+Returns the current consumer secret.
 
-Valid arguments are a hash of key/value pairs a defined by the FireEagle 
-update API documentation.
+Can optionally set the consumer secret.
 
-If the method encounters any errors calling the API, receives an API error
-or can not parse the response it will log an error event, via the B<log> method,
-and return undef.
+=cut
 
-Otherwise it will return a I<XML::LibXML::Document> object (if XML::LibXML is
-installed) or a I<XML::XPath> object.
+sub consumer_secret {
+    my $self = shift;
+    $self->_access('consumer_secret', $@);
+}
+
+
+=head2 access_token [access_token]
+
+Returns the current access token.
+
+Can optionally set a new token.
+
+=cut
+
+sub access_token {
+    my $self = shift;
+    $self->_access('access_token', $@);
+}
+
+
+=head2 access_token_secret [access_token_secret]
+
+Returns the current access token secret.
+
+Can optionally set a new secret.
+
+=cut
+
+sub access_token_secret {
+    my $self = shift;
+    return $self->_access('access_token_secret', $@);
+}
+
+sub _access {
+    my $self = shift;
+    my $key  = shift;
+    $self->{$key} = shift if $@;
+    return $self->{$key};
+}
+
+# generate a random number 
+sub _nonce {
+    return int( rand( 2**32 ) );
+}
+
+=head2 request_access_token
+
+Request the access token and access token secret for this user.
+
+The user must have authorized this app at the url given by
+C<get_authorization_url> first.
+
+Returns the access token and access token secret but also sets 
+them internally so that after calling this method you can 
+immediately call C<location> or C<update_location>.
+
+=cut
+
+sub request_access_token {
+    my $self = shift;
+    print "REQUESTING ACCESS TOKEN\n" if $DEBUG;
+    my $access_token_response = $self->_make_request(
+        'Net::OAuth::AccessTokenRequest',
+        $ACCESS_TOKEN_URL, 'GET',
+        token            => $self->{request_token},
+        token_secret     => $self->{request_token_secret},
+    );
+
+    # Cast response into CGI query for EZ parameter decoding
+    my $access_token_response_query =
+      new CGI( $access_token_response->content );
+
+    # Split out token and secret parameters from the access token response
+    $self->{access_token} = $access_token_response_query->param('oauth_token');
+    $self->{access_token_secret} =
+      $access_token_response_query->param('oauth_token_secret');
+
+    die "ERROR: FireEagle did not reply with an access token"
+      unless ( $self->{access_token} && $self->{access_token_secret} );
+        
+    return ( $self->{access_token}, $self->{access_token_secret} );
+}
+
+
+sub _request_request_token {
+    my $self                   = shift;
+    my $request_token_response = $self->_make_request(
+        'Net::OAuth::RequestTokenRequest',
+        $REQUEST_TOKEN_URL, 'GET');
+
+    die $request_token_response->status_line
+      unless ( $request_token_response->is_success );
+
+    # Cast response into CGI query for EZ parameter decoding
+    my $request_token_response_query =
+      new CGI( $request_token_response->content );
+
+    # Split out token and secret parameters from the request token response
+    $self->{request_token} =
+      $request_token_response_query->param('oauth_token');
+    $self->{request_token_secret} =
+      $request_token_response_query->param('oauth_token_secret');
+
+}
+
+=head2 get_authorization_url
+
+Get the URL to authorize a user.
+
+=cut
+
+sub get_authorization_url {
+    my $self = shift;
+
+    if (!defined $self->{request_token}) {
+        $self->_request_request_token;
+    }
+    return $AUTHORIZATION_URL . '?oauth_token=' . $self->{request_token};
+}
+
+
+=head2 location [opt[s]
+
+Get the user's current location.
+
+Options are passed in as a hash and may be one of
+
+=over 4
+
+=item format
+
+Either 'xml' or 'json'. Defaults to 'xml'.
+
+=back
+
+=cut
+
+sub location {
+    my $self = shift;
+    my %opts = @_;
+
+    my $url = $QUERY_API_URL; 
+       
+    $url .= '.'.$opts{format} if defined $opts{format};
+
+    return $self->_make_restricted_request($url, 'GET');
+}
+
+=head2 update_location <location> <opt[s]>
+
+Takes a free form string with the new location.
+
+Return the result of the update in either xml or json
+depending on C<opts>.
+
+The location can either be a plain string or a hash reference containing
+location parameters as described in
+
+    http://fireeagle.yahoo.net/developer/documentation/location#locparams
 
 =cut
 
 sub update_location {
-        my $self = shift;
-        my %args = @_;
-
-        $args{"appid"} = $self->{'__cfg'}->param("fireeagle.app_key");
-        $args{"userid"} = $self->{'__cfg'}->param("fireeagle.auth_token");
-        $args{"timestamp"} = time();
-
-        $self->sign_args(\%args);
-
-        my $uri = URI->new();
-        $uri->scheme($FE_SCHEME);
-        $uri->host($FE_HOST);
-        $uri->path($FE_UPDATELOC);
-        $uri->query_form(%args);
-
-        my $url = $uri->as_string();
-        return $self->execute_request($url);
+    my $self     = shift;
+    my $location = shift;
+    my %opts     = @_;
+   
+    my $extras = $self->_munge_location($location);
+    
+    my $url  = $UPDATE_API_URL; 
+       
+    $url  .= '.'.$opts{format} if defined $opts{format};
+    
+    return $self->_make_restricted_request($url, 'POST', $extras);
 }
 
-=head2 $obj->authorize_url()
+=head2 lookup_location <query> <opt[s]>
 
-Generate a URL for requesting a user's authorization for your application.
+Disambiguates potential values for update. Results from lookup can be 
+passed to update to ensure that Fire Eagle will understand how to parse 
+the location parameter.
 
-Returns a string.
+Return the result of the update in either xml or json
+depending on C<opts>.
+
+The query can either be a plain string or a hash reference containing
+location parameters as described in
+
+    http://fireeagle.yahoo.net/developer/documentation/location#locparams
 
 =cut
 
-sub authorize_url {
-        my $self = shift;
-        my $uri = URI->new();
-        $uri->scheme($FE_SCHEME);
-        $uri->host($FE_HOST);
-        $uri->path($FE_AUTHORIZE);
-        $uri->query_form("appid" => $self->{'__cfg'}->param("fireeagle.app_key"));
-        return $uri->as_string();
+sub lookup_location {
+    my $self     = shift;
+    my $location = shift;
+    my %opts     = @_;
+  
+    my $extras = $self->_munge_location($location);
+
+    my $url = $LOOKUP_API_URL; 
+    
+    $url .= '.'.$opts{format} if defined $opts{format};
+    
+    return $self->_make_restricted_request($url, 'GET', $extras);
 }
 
-=head2 $obj->mobile_token_url()
-
-Generate a URL for creating a mobile shortcode for your application.
-
-Returns a string.
-
-=cut
-
-sub mobile_token_url {
-        my $self = shift;
-        my $uri = URI->new();
-        $uri->scheme($FE_SCHEME);
-        $uri->host($FE_HOST);
-        $uri->path($FE_DISPLAYTOKEN);
-        $uri->query_form("appid" => $self->{'__cfg'}->param("fireeagle.app_key"));
-        return $uri->as_string();
+sub _munge_location {
+    my $self  = shift;
+    my $loc   = shift;
+    my $ref   = ref($loc);
+    return { address => $loc } if !defined $ref or "" eq $ref;
+    return $loc                if 'HASH' eq $ref;
+    die "Can't understand location parameter in the form of a $ref ref";  
 }
 
-=head2 $obj->exchange_mobile_token($shortcode)
+sub _make_restricted_request {
+    my $self     = shift;
 
-Exchange a mobile shortcode for a permanent user authentication token.
+    croak $UNAUTHORIZED unless $self->authorized;
 
-Returns a string on success, or undef.
-
-=cut
-
-sub exchange_mobile_token {
-        my $self = shift;
-        my $shortcode = shift;
-
-        my %args = ("appid" => $self->{'__cfg'}->param("fireeagle.app_key"),
-                    "shortcode" => $shortcode,
-                    "timestamp" => time());
-
-        $self->sign_args(\%args);
-
-        my $uri = URI->new();
-        $uri->scheme($FE_SCHEME);
-        $uri->host($FE_HOST);
-        $uri->path($FE_EXCHANGETOKEN);
-        $uri->query_form(%args);
-
-        my $url = $uri->as_string();
-        my $res = $self->execute_request($url);
-
-        if (! $res) {
-                return undef;
-        }
-
-        my $stat = $res->findvalue("/rsp/\@stat");
-
-        if ($stat ne "ok"){
-                $self->log()->error($res->findvalue("/rsp/\@msg"));
-                return undef;
-        }
-
-        return $res->findvalue("/rsp/token");
+    my $url      = shift;
+    my $method   = shift;
+    my $extra    = shift || {};
+     my $response = $self->_make_request(
+        'Net::OAuth::ProtectedResourceRequest',
+        $url, $method, 
+        token            => $self->{access_token},
+        token_secret     => $self->{access_token_secret},
+        extra_params     => $extra,
+    );
+    return $response->content;
 }
 
-=head1 OBJECT METHODS YOU MAY CARE ABOUT
+sub _make_request {
+    my $self    = shift;
 
-=cut
+    my $class   = shift;
+    my $url     = shift;
+    my $method  = shift;
+    my %extra   = @_;
 
-=head2 $obj->sign_args(\%args)
+    my $request = $class->new(
+        consumer_key     => $self->{consumer_key},
+        consumer_secret  => $self->{consumer_secret},
+        request_url      => $url,
+        request_method   => $method,
+        signature_method => $SIGNATURE_METHOD,
+        timestamp        => time,
+        nonce            => $self->_nonce,
+        %extra,
+    );
+    $request->sign;
+    die "COULDN'T VERIFY! Check OAuth parameters.\n"
+      unless $request->verify;
 
-Generate an API signature and adds it to the %args hash.
+    my $request_url = $url . '?' . $request->to_post_body;
+    my $response    = $self->{browser}->get($request_url);
+    die $response->status_line
+      unless ( $response->is_success );
 
-=cut
-
-sub sign_args {
-        my $self = shift;
-        my $args = shift;
-        my $sig = $self->generate_sig($args);
-        $args->{'sig'} = $sig;
+    return $response;
 }
 
-=head2 $obj->generate_sig(\%args)
 
-Returns a string.
+=head1 RANDOMNESS
 
-=cut
-
-sub generate_sig {
-        my $self = shift;
-        my $args = shift;
-
-        my $sig = $self->{'__cfg'}->param("fireeagle.app_secret");
-
-        foreach my $key (sort keys %$args) {
-                $sig .= $key;
-                $sig .= $args->{$key};
-        }
-
-        return sha1_hex($sig);
-}
-
-=head2 $obj->execute_request($url)
-
-If the method encounters any errors it will log an error event, via the B<log>
-method, and return undef.
-
-Otherwise it will return a I<XML::LibXML::Document> object (if XML::LibXML is
-installed) or a I<XML::XPath> object.
-
-=cut
-
-sub execute_request {
-        my $self = shift;
-        my $url  = shift;
-
-        my $req = HTTP::Request->new('GET' => $url);
-        my $res = $self->request($req);
-
-        if (! $res->is_success()){
-                $self->log()->error("API request failed, " . $res->message());
-                return undef;
-        }
-
-        my $xml = $self->parse_response($res);
-
-        if (! $xml) {
-                return undef;
-        }
-
-        return $xml;
-}
-
-=head2 $obj->parse_response(HTTP::Response)
-
-=cut
-
-sub parse_response {
-        my $self = shift;
-        my $res  = shift;
-
-        my $xml = undef;
-
-        if ($self->{'__cfg'}->param("fireeagle.api_handler") eq "XPath") {
-                eval "require XML::XPath";
-
-                if (! $@) {
-                        eval {
-                                $xml = XML::XPath->new(xml=>$res->content());
-                        };
-                }
-        }
-        
-        else {
-                eval "require XML::LibXML";
-
-                if (! $@) {
-                        eval {
-                                my $parser = XML::LibXML->new();
-                                $xml = $parser->parse_string($res->content());
-                        };
-                }
-        }
-
-        if (! $xml) {
-                $self->log()->error("Failed to parse response, $@");
-                return undef;
-        }
-
-        # 
-        
-        if ($xml->findvalue("/ResultSet/Error")){
-                $self->log()->error("API error, " . $xml->findvalue("/ResultSet/ErrorMessage"));
-                return undef;
-        }
-
-        # 
-
-        return $xml;
-}
-
-=head2 $obj->log()
-
-Returns a I<Log::Dispatch> object.
-
-=cut
-
-sub log {
-        my $self = shift;
-        return $self->{'__log'};
-}
-
-=head1 VERSION
-
-1.01
-
-=head1 DATE
-
-$Date: 2007/06/30 04:25:27 $
-
-=head1 AUTHOR
-
-Aaron Straup Cope  E<lt>ascope@cpan.orgE<gt>
-
-=head1 SEE ALSO
-
-L<http://fireeagle.research.yahoo.com/>
-
-L<http://www.aaronland.info/weblog/2007/06/08/pynchonite/#firebagel>
-
-L<Config::Simple>
+If C<Math::Random::MT> is installed then any nonces
+generated will use a Mersenne Twiser instead of Perl's
+built in randomness function.
 
 =head1 BUGS
 
-Please report all bugs via http://rt.cpan.org/
+Non known
 
-=head1 LICENSE
+=head1 DEVELOPERS
 
-Copyright (c) 2007 Aaron Straup Cope. All Rights Reserved.
+The latest code for this module can be found at
 
-This is free software. You may redistribute it and/or
-modify it under the same terms as Perl itself.
+    http://svn.unixbeard.net/simon/Net-FireEagle
 
-=back
+=head1 AUTHOR
 
-return 1;
+Original code by Yahoo! Brickhouse.
+
+Additional code from Aaron Straup Cope
+
+Rewritten and packaged by Simon Wistow <swistow@sixapart.com>
+
+=head1 COPYRIGHT
+
+Copyright 2008 - Simon Wistow and Yahoo! Brickhouse
+
+Distributed under the same terms as Perl itself.
+
+See L<perlartistic> and L<perlgpl>.
+
+=head1 SEE ALSO
+
+L<Net::OAuth>
+
+=cut
+
+1;
