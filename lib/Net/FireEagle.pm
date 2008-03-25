@@ -16,7 +16,7 @@ BEGIN {
     }
 }
 
-our $VERSION = '0.8';
+our $VERSION = '0.9';
 our $DEBUG   = 0;
 
 # FireEagle Endpoint URLs
@@ -35,9 +35,9 @@ our @access_token_params         = qw(access_token access_token_secret);
 
 =head1 NAME
 
-Net::FireEagle - access Yahoo's new FireEagle developer service
+Net::FireEagle - access Yahoo's new FireEagle location service
 
-=head2 SYNOPSIS
+=head1 SYNOPSIS
 
     # Set up Fire Eagle oauth
     my $fe  = Net::FireEagle->new( consumer_key    => $consumer_key, 
@@ -287,7 +287,7 @@ sub _request_request_token {
         'Net::OAuth::RequestTokenRequest',
         $REQUEST_TOKEN_URL, 'GET');
 
-    die $request_token_response->status_line
+    die "GET for $REQUEST_TOKEN_URL failed: ".$request_token_response->status_line
       unless ( $request_token_response->is_success );
 
     # Cast response into CGI query for EZ parameter decoding
@@ -435,14 +435,14 @@ sub _make_request {
 
     my $class   = shift;
     my $url     = shift;
-    my $method  = shift;
+    my $method  = lc(shift);
     my %extra   = @_;
 
     my $request = $class->new(
         consumer_key     => $self->{consumer_key},
         consumer_secret  => $self->{consumer_secret},
         request_url      => $url,
-        request_method   => $method,
+        request_method   => uc($method),
         signature_method => $SIGNATURE_METHOD,
         timestamp        => time,
         nonce            => $self->_nonce,
@@ -453,8 +453,8 @@ sub _make_request {
       unless $request->verify;
 
     my $request_url = $url . '?' . $request->to_post_body;
-    my $response    = $self->{browser}->get($request_url);
-    die $response->status_line
+    my $response    = $self->{browser}->$method($request_url);
+    die "$method on $request_url failed: ".$response->status_line
       unless ( $response->is_success );
 
     return $response;
