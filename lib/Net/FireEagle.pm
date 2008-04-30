@@ -17,7 +17,7 @@ BEGIN {
     }
 }
 
-our $VERSION = '1.0';
+our $VERSION = '1.1';
 our $DEBUG   = 0;
 
 # FireEagle Endpoint URLs
@@ -514,7 +514,7 @@ Non known
 
 The latest code for this module can be found at
 
-    http://svn.unixbeard.net/simon/Net-FireEagle
+    https://svn.unixbeard.net/simon/Net-FireEagle
 
 =head1 AUTHOR
 
