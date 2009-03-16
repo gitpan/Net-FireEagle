@@ -4,6 +4,8 @@ use strict;
 use Net::FireEagle;
 use JSON::Any;
 
+my $CONFIG = $ENV{HOME}."/.fireeagle";
+
 =head1 NAME 
 
 fireeagle - simple FireEagle client 
@@ -114,7 +116,12 @@ print "Your access token and secret are:\n\n";
 print "access_token=$access_token\n";
 print "access_token_secret=$access_token_secret\n";
 print "\n";
-print "You should note these down or put them in $ENV{HOME}/.fireeagle\n\n";
+if (-f $CONFIG) {
+    save_tokens($fe);
+    print "You should note these down but they have also been saved in $CONFIG\n\n";
+} else {
+    print "You should note these down or put them in $CONFIG with your consumer key and secret\n\n";
+}
 
 print "Current location: ".get_location($fe)."\n";
 
@@ -123,7 +130,7 @@ print "Current location: ".get_location($fe)."\n";
 sub get_tokens {
     my @return;
     # This also needs to try reading from a config file
-    my %tokens = fetch_config();
+    my %tokens = Net::FireEagle->load_tokens($CONFIG);
     while (@ARGV && $ARGV[0] =~ m!^(\w+)\=(\w+)$!) {
         $tokens{$1} = $2;
         shift @ARGV;
@@ -131,21 +138,10 @@ sub get_tokens {
     return %tokens;
 }
 
-sub fetch_config {
-    my %tokens = ();
-    my $file   = $ENV{HOME}."/.fireeagle";
-    return %tokens unless -f $file;
-
-    open(my $fh, $file) || die "Couldn't open $file: $!\n";
-    while (<$fh>) {
-        chomp;
-        next if /^#/;
-        next if /^\s*$/;
-        next unless /=/;
-        my ($key, $val) = split /\s*=\s*/, $_, 2;
-        $tokens{$key} = $val;
-    }
-    return %tokens;
+sub save_tokens {
+    my $fe     = shift;
+    my %tokens = $fe->tokens;
+    Net::FireEagle->save_tokens($CONFIG, %tokens);
 }
 
 sub error {

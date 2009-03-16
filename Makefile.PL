@@ -5,11 +5,8 @@ WriteMakefile
           'NAME' => 'Net::FireEagle',
           'VERSION_FROM' => 'lib/Net/FireEagle.pm',
           'PREREQ_PM' => {
-                           'CGI' => '0',
-                           'Crypt::SSLeay' => '0',
                            'JSON::Any' => '0',
-                           'LWP::UserAgent' => '0',
-                           'Net::OAuth::Request' => '0.06',
+                           'Net::OAuth::Simple' => '0.8',
                            'Test::More' => '0'
                          },
           'INSTALLDIRS' => 'site',

@@ -1,3 +1,6 @@
+v1.3 
+  Switch to using Net::OAuth::Simple 
+
 v1.2 Thu 14 Aug 2008 01:23:46 BST
   Fix the accessors (Brendan O'Connor)
 

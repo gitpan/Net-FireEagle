@@ -1,6 +1,6 @@
 ---
 name: Net-FireEagle
-version: 1.2
+version: 1.3
 author:
   - 'Rewritten and packaged by Simon Wistow <swistow@sixapart.com>'
 abstract: access Yahoo's new FireEagle location service
@@ -8,16 +8,13 @@ license: perl
 resources:
   license: http://dev.perl.org/licenses/
 requires:
-  CGI: 0
-  Crypt::SSLeay: 0
   JSON::Any: 0
-  LWP::UserAgent: 0
-  Net::OAuth::Request: 0.06
+  Net::OAuth::Simple: 0.8
   Test::More: 0
 provides:
   Net::FireEagle:
     file: lib/Net/FireEagle.pm
-    version: 1.2
+    version: 1.3
 generated_by: Module::Build version 0.2808
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html

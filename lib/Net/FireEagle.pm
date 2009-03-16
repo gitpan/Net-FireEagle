@@ -2,23 +2,9 @@ package Net::FireEagle;
 
 # Client library for FireEagle
 use strict;
-use LWP;
-use CGI;
-use Carp;
-require Net::OAuth::Request;
-require Net::OAuth::RequestTokenRequest;
-require Net::OAuth::AccessTokenRequest;
-require Net::OAuth::ProtectedResourceRequest;
+use base qw(Net::OAuth::Simple);
 
-BEGIN {
-    eval {  require Math::Random::MT };
-    unless ($@) {
-        Math::Random::MT->import(qw(srand rand));
-    }
-}
-
-our $VERSION = '1.2';
-our $DEBUG   = 0;
+our $VERSION = '1.3';
 
 # FireEagle Endpoint URLs
 our $REQUEST_TOKEN_URL = 'https://fireeagle.yahooapis.com/oauth/request_token';
@@ -27,11 +13,7 @@ our $ACCESS_TOKEN_URL  = 'https://fireeagle.yahooapis.com/oauth/access_token';
 our $QUERY_API_URL     = 'https://fireeagle.yahooapis.com/api/0.1/user';
 our $UPDATE_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/update';
 our $LOOKUP_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/lookup';
-our $SIGNATURE_METHOD  = 'HMAC-SHA1';
-our $UNAUTHORIZED      = "Unauthorized.";
 
-our @required_constructor_params = qw(consumer_key consumer_secret);
-our @access_token_params         = qw(access_token access_token_secret);
 
 
 =head1 NAME
@@ -143,218 +125,17 @@ can supply
 sub new {
     my $proto  = shift;
     my $class  = ref $proto || $proto;
-    my %params = @_;
-    my $client = bless \%params, $class;
-
-    # Verify arguments
-    $client->_check;
-
-    # Set up LibWWWPerl for HTTP requests
-    $client->{browser} = LWP::UserAgent->new;
-
-    # Client Object
-    return $client;
-}
-
-
-
-# Validate required constructor params
-sub _check {
-    my $self = shift;
-    foreach my $param ( @required_constructor_params ) {
-        if ( not defined $self->{$param} ) {
-            die "Missing required parameter '$param'";
-        }
-    }
-}
-
-=head2 authorized
-
-Whether the client has the necessary credentials to be authorized.
-
-Note that the credentials may be wrong and so the request may still fail.
-
-=cut
-
-sub authorized {
-    my $self = shift;
-    foreach my $param ( @access_token_params ) {
-        if ( not defined $self->{$param} ) { return 0; }
-    }
-    return 1;
-}
-
-=head2 consumer_key [consumer key]
-
-Returns the current consumer key. 
-
-Can optionally set the consumer key.
-
-=cut
-
-sub consumer_key {
-    my $self = shift;
-    $self->_access('consumer_key', @_);
-}
-
-=head2 consumer_secret [consumer secret]
-
-Returns the current consumer secret.
-
-Can optionally set the consumer secret.
-
-=cut
-
-sub consumer_secret {
-    my $self = shift;
-    $self->_access('consumer_secret', @_);
-}
-
-
-=head2 access_token [access_token]
-
-Returns the current access token.
-
-Can optionally set a new token.
-
-=cut
-
-sub access_token {
-    my $self = shift;
-    $self->_access('access_token', @_);
-}
-
-
-=head2 access_token_secret [access_token_secret]
-
-Returns the current access token secret.
-
-Can optionally set a new secret.
-
-=cut
-
-sub access_token_secret {
-    my $self = shift;
-    return $self->_access('access_token_secret', @_);
-}
-
-=head2 request_token [request_token]
-
-Returns the current request token.
-
-Can optionally set a new token.
-
-=cut
-
-sub request_token {
-    my $self = shift;
-    $self->_access( 'request_token', @_);
-}
-
-
-=head2 request_token_secret [request_token_secret]
-
-Returns the current request token secret.
-
-Can optionally set a new secret.
-
-=cut
-
-sub request_token_secret {
-    my $self = shift;
-    return $self->_access( 'request_token_secret', @_);
-}
-
-
-
-
-
-sub _access {
-    my $self = shift;
-    my $key  = shift;
-    $self->{$key} = shift if @_;
-    return $self->{$key};
-}
-
-# generate a random number 
-sub _nonce {
-    return int( rand( 2**32 ) );
-}
-
-=head2 request_access_token
-
-Request the access token and access token secret for this user.
-
-The user must have authorized this app at the url given by
-C<get_authorization_url> first.
-
-Returns the access token and access token secret but also sets 
-them internally so that after calling this method you can 
-immediately call C<location> or C<update_location>.
-
-=cut
-
-sub request_access_token {
-    my $self = shift;
-    print "REQUESTING ACCESS TOKEN\n" if $DEBUG;
-    my $access_token_response = $self->_make_request(
-        'Net::OAuth::AccessTokenRequest',
-        $ACCESS_TOKEN_URL, 'GET',
-        token            => $self->{request_token},
-        token_secret     => $self->{request_token_secret},
-    );
-
-    # Cast response into CGI query for EZ parameter decoding
-    my $access_token_response_query =
-      new CGI( $access_token_response->content );
-
-    # Split out token and secret parameters from the access token response
-    $self->{access_token} = $access_token_response_query->param('oauth_token');
-    $self->{access_token_secret} =
-      $access_token_response_query->param('oauth_token_secret');
-
-    die "ERROR: FireEagle did not reply with an access token"
-      unless ( $self->{access_token} && $self->{access_token_secret} );
-        
-    return ( $self->{access_token}, $self->{access_token_secret} );
-}
-
-
-sub _request_request_token {
-    my $self                   = shift;
-    my $request_token_response = $self->_make_request(
-        'Net::OAuth::RequestTokenRequest',
-        $REQUEST_TOKEN_URL, 'GET');
-
-    die "GET for $REQUEST_TOKEN_URL failed: ".$request_token_response->status_line
-      unless ( $request_token_response->is_success );
-
-    # Cast response into CGI query for EZ parameter decoding
-    my $request_token_response_query =
-      new CGI( $request_token_response->content );
-
-    # Split out token and secret parameters from the request token response
-    $self->{request_token} =
-      $request_token_response_query->param('oauth_token');
-    $self->{request_token_secret} =
-      $request_token_response_query->param('oauth_token_secret');
+    my %tokens = @_;
+
+    return $class->SUPER::new( tokens => \%tokens,
+                               urls   => {
+                                authorization_url => $AUTHORIZATION_URL,
+                                request_token_url => $REQUEST_TOKEN_URL,
+                                access_token_url  => $ACCESS_TOKEN_URL,
+                            });        
 
 }
 
-=head2 get_authorization_url
-
-Get the URL to authorize a user.
-
-=cut
-
-sub get_authorization_url {
-    my $self = shift;
-
-    if (!defined $self->{request_token}) {
-        $self->_request_request_token;
-    }
-    return $AUTHORIZATION_URL . '?oauth_token=' . $self->{request_token};
-}
 
 
 =head2 location [opt[s]
@@ -403,9 +184,9 @@ sub update_location {
     my $location = shift;
     my %opts     = @_;
    
-    my $extras = $self->_munge_location($location);
+    my $extras   = $self->_munge_location($location);
     
-    my $url  = $UPDATE_API_URL; 
+    my $url      = $UPDATE_API_URL; 
        
     $url  .= '.'.$opts{format} if defined $opts{format};
     
@@ -442,6 +223,12 @@ sub lookup_location {
     return $self->_make_restricted_request($url, 'GET', $extras);
 }
 
+sub _make_restricted_request {
+    my $self     = shift;
+    my $response = $self->make_restricted_request(@_);
+    return $response->content;
+}
+
 sub _munge_location {
     my $self  = shift;
     my $loc   = shift;
@@ -450,61 +237,6 @@ sub _munge_location {
     return $loc                if 'HASH' eq $ref;
     die "Can't understand location parameter in the form of a $ref ref";  
 }
-
-sub _make_restricted_request {
-    my $self     = shift;
-
-    croak $UNAUTHORIZED unless $self->authorized;
-
-    my $url      = shift;
-    my $method   = shift;
-    my $extra    = shift || {};
-     my $response = $self->_make_request(
-        'Net::OAuth::ProtectedResourceRequest',
-        $url, $method, 
-        token            => $self->{access_token},
-        token_secret     => $self->{access_token_secret},
-        extra_params     => $extra,
-    );
-    return $response->content;
-}
-
-sub _make_request {
-    my $self    = shift;
-
-    my $class   = shift;
-    my $url     = shift;
-    my $method  = lc(shift);
-    my %extra   = @_;
-
-    my $request = $class->new(
-        consumer_key     => $self->{consumer_key},
-        consumer_secret  => $self->{consumer_secret},
-        request_url      => $url,
-        request_method   => uc($method),
-        signature_method => $SIGNATURE_METHOD,
-        timestamp        => time,
-        nonce            => $self->_nonce,
-        %extra,
-    );
-    $request->sign;
-    die "COULDN'T VERIFY! Check OAuth parameters.\n"
-      unless $request->verify;
-
-    my $request_url = $url . '?' . $request->to_post_body;
-    my $response    = $self->{browser}->$method($request_url);
-    die "$method on $request_url failed: ".$response->status_line
-      unless ( $response->is_success );
-
-    return $response;
-}
-
-
-=head1 RANDOMNESS
-
-If C<Math::Random::MT> is installed then any nonces
-generated will use a Mersenne Twiser instead of Perl's
-built in randomness function.
 
 =head1 BUGS
 
@@ -534,7 +266,7 @@ See L<perlartistic> and L<perlgpl>.
 
 =head1 SEE ALSO
 
-L<Net::OAuth>
+L<Net::OAuth::Simple>
 
 =cut
 
