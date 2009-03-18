@@ -1,4 +1,7 @@
-v1.3 
+v1.4 Wed 18 Mar 2009 01:48:27 GMT
+  Fix somewhat spurious tests
+
+v1.3 Mon 16 Mar 2009 16:35:00 BST
   Switch to using Net::OAuth::Simple 
 
 v1.2 Thu 14 Aug 2008 01:23:46 BST
