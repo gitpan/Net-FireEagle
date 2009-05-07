@@ -4,7 +4,7 @@ package Net::FireEagle;
 use strict;
 use base qw(Net::OAuth::Simple);
 
-our $VERSION = '1.4';
+our $VERSION = '1.5';
 
 # FireEagle Endpoint URLs
 our $REQUEST_TOKEN_URL = 'https://fireeagle.yahooapis.com/oauth/request_token';
@@ -13,7 +13,8 @@ our $ACCESS_TOKEN_URL  = 'https://fireeagle.yahooapis.com/oauth/access_token';
 our $QUERY_API_URL     = 'https://fireeagle.yahooapis.com/api/0.1/user';
 our $UPDATE_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/update';
 our $LOOKUP_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/lookup';
-
+our $WITHIN_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/within';
+our $RECENT_API_URL    = 'https://fireeagle.yahooapis.com/api/0.1/recent';
 
 
 =head1 NAME
@@ -120,6 +121,29 @@ can supply
 
 =back
 
+Alternatively when you create a new web-based application, a general-purpose 
+access token is issued to you along with your application key and secret. You
+can get them at http://fireeagle.yahoo.net/developer/manage.
+
+They are tied to your application and allow your application to make 
+general-purpose API method calls (often batch-style) to Fire Eagle.
+
+You can read about them at
+
+    http://fireagle.yahoo.net/developer/documentation/using_oauth#feaccesstokens
+
+
+
+You can pass them in using the param
+
+=over 4
+
+=item general_token
+
+=item general_token_secret
+
+=back
+
 =cut
 
 sub new {
@@ -135,8 +159,6 @@ sub new {
                             });        
 
 }
-
-
 
 =head2 location [opt[s]
 
@@ -159,8 +181,7 @@ sub location {
     my %opts = @_;
 
     my $url = $QUERY_API_URL; 
-       
-    $url .= '.'.$opts{format} if defined $opts{format};
+    $url   .= '.'.$opts{format} if defined $opts{format};
 
     return $self->_make_restricted_request($url, 'GET');
 }
@@ -184,13 +205,12 @@ sub update_location {
     my $location = shift;
     my %opts     = @_;
    
-    my $extras   = $self->_munge_location($location);
+    my %extras   = $self->_munge('address', $location);
     
     my $url      = $UPDATE_API_URL; 
-       
-    $url  .= '.'.$opts{format} if defined $opts{format};
+    $url        .= '.'.$opts{format} if defined $opts{format};
     
-    return $self->_make_restricted_request($url, 'POST', $extras);
+    return $self->_make_restricted_request($url, 'POST', %extras);
 }
 
 =head2 lookup_location <query> <opt[s]>
@@ -214,13 +234,72 @@ sub lookup_location {
     my $location = shift;
     my %opts     = @_;
   
-    my $extras = $self->_munge_location($location);
+    my %extras   = $self->_munge('address', $location);
+    my $url      = $LOOKUP_API_URL;
+    $url        .= '.'.$opts{format} if defined $opts{format};
+    
+    return $self->_make_restricted_request($url, 'GET', %extras);
+}
 
-    my $url = $LOOKUP_API_URL; 
-    
-    $url .= '.'.$opts{format} if defined $opts{format};
-    
-    return $self->_make_restricted_request($url, 'GET', $extras);
+=head2 within <query> <opt[s]>
+
+Takes a Place ID or a WoE ID and returns a list of users using your 
+application who are within the bounding box of that location.
+
+Return the result of the update in either xml or json
+depending on C<opts>.
+
+The query can either be a plain string or a hash reference containing
+location parameters as described in
+
+    http://fireeagle.yahoo.net/developer/documentation/location#locparams
+
+=cut
+
+sub within {
+    my $self     = shift;
+    my $location = shift;
+    my %opts     = @_;
+
+    my %extras   = $self->_munge('address', $location);
+    my $url      = $WITHIN_API_URL;
+    $url        .= '.'.$opts{format} if defined $opts{format};
+
+    return $self->_make_restricted_request_general($url, 'GET', %extras);
+}
+
+
+=head2 recent <query> [opt[s]]
+
+Query for users of an Application who have updated their locations recently. 
+
+Return the result of the update in either xml or json
+depending on C<opts>.
+
+Query is either a number representing a unix time stamp, to
+specify the earliest update to return, or a hash reference containing 
+parameters as described in
+
+    http://fireagle.yahoo.net/developer/documentation/querying#recent
+
+=cut
+
+sub recent {
+     my $self   = shift;
+     my $time   = shift;
+     my %opts   = @_;
+
+     my %extras = $self->_munge('time', $time);
+     my $url    = $RECENT_API_URL;
+     $url      .= '.'.$opts{format} if defined $opts{format};
+
+     return $self->_make_restricted_request_general($url, 'GET', %extras);
+}
+
+sub _make_restricted_request_general {
+     my $self     = shift;
+     my $response = $self->make_general_request(@_);
+     return $response->content;
 }
 
 sub _make_restricted_request {
@@ -229,13 +308,14 @@ sub _make_restricted_request {
     return $response->content;
 }
 
-sub _munge_location {
+sub _munge {
     my $self  = shift;
-    my $loc   = shift;
-    my $ref   = ref($loc);
-    return { address => $loc } if !defined $ref or "" eq $ref;
-    return $loc                if 'HASH' eq $ref;
-    die "Can't understand location parameter in the form of a $ref ref";  
+    my $key   = shift;
+    my $item  = shift || return ();
+    my $ref   = ref($item);
+    return ( $key => $item ) if !defined $ref or "" eq $ref;
+    return %$item            if 'HASH' eq $ref;
+    die "Can't understand $key parameter in the form of a $ref ref";  
 }
 
 =head1 BUGS

@@ -1,3 +1,7 @@
+v1.5 Thu  7 May 2009 19:58:46 BST
+  Add support for general purpose tokens and
+  the within and recent methods (Sainath Adiraju)
+
 v1.4 Wed 18 Mar 2009 01:48:27 GMT
   Fix somewhat spurious tests
 

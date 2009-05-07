@@ -8,7 +8,7 @@ my $build = Module::Build
          requires     => {
                           'JSON::Any'                => '0',
                           'Test::More'               => '0',
-                          'Net::OAuth::Simple'       => '0.8',
+                          'Net::OAuth::Simple'       => '1.1',
                         },
          create_makefile_pl => 'traditional',
        );

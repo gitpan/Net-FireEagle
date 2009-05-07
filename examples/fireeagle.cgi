@@ -17,7 +17,10 @@ my $file   = ".fireeagle";
 my %tokens = Net::FireEagle->load_tokens($file);
 my $fe     = Net::FireEagle->new(%tokens);
 
-location() if $fe->authorized;
+if ($fe->authorized) {
+    my $method = $cgi->param('method') || 'location';
+    eval "$method";
+}
 
 # We haven't authorized yet so get the authorization url
 unless ($cgi->param('oauth_token')) {
@@ -60,6 +63,17 @@ unless ($cgi->param('oauth_token')) {
 }
 
 die "We should never get here\n";
+
+sub recent {
+    print $cgi->header;
+    print head("Your location");
+    my $json = $fe->recent(undef, format => 'json');
+    my $obj  = parse_json($json);
+    use Data::Dumper;
+    print "<pre>".Dumper($obj)."</pre>";
+    print foot();
+    exit 0;
+}
 
 sub location {
     print $cgi->header;
