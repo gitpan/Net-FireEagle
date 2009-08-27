@@ -6,7 +6,7 @@ WriteMakefile
           'VERSION_FROM' => 'lib/Net/FireEagle.pm',
           'PREREQ_PM' => {
                            'JSON::Any' => '0',
-                           'Net::OAuth::Simple' => '1.1',
+                           'Net::OAuth::Simple' => '1.2',
                            'Test::More' => '0'
                          },
           'INSTALLDIRS' => 'site',

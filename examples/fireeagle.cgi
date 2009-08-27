@@ -51,6 +51,10 @@ unless ($cgi->param('oauth_token')) {
     die "Request tokens don't match\n" 
         unless $fe->request_token eq $cgi->param('oauth_token');
 
+    # Set the verifier
+    $fe->verifier($cgi->param('oauth_verifier'));
+
+
     # Get the access token and save the values
     $fe->request_access_token;
     my %tokens = $fe->tokens;

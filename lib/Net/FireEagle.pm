@@ -4,7 +4,7 @@ package Net::FireEagle;
 use strict;
 use base qw(Net::OAuth::Simple);
 
-our $VERSION = '1.5';
+our $VERSION = '1.6';
 
 # FireEagle Endpoint URLs
 our $REQUEST_TOKEN_URL = 'https://fireeagle.yahooapis.com/oauth/request_token';

@@ -105,9 +105,12 @@ if ($fe->authorized) {
 
 # right, we need to get their access stuff
 print "STEP 1: REQUEST FIREEAGLE AUTHORIZATION FOR THIS APP\n";
-print "\tURL : ".$fe->get_authorization_url."\n";
-print "\n-- Please go to the above URL and authorize the app -- hit <ENTER> when done.";
-my $enter = <STDIN>; print "\n";
+print "\tURL : ".$fe->get_authorization_url( callback => 'oob' )."\n";
+print "\n-- Please go to the above URL and authorize the app";
+print "\n-- It will give you a code. Please type it here: ";
+my $verifier = <STDIN>; print "\n";
+chomp($verifier);
+$fe->verifier($verifier);
 
 my ($access_token, $access_token_secret) = $fe->request_access_token;
 
